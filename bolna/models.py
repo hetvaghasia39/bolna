@@ -85,7 +85,6 @@ class Transcriber(BaseModel):
 
     @validator("provider")
     def validate_model(cls, value):
-        print(f"value {value}, PROVIDERS {list(SUPPORTED_TRANSCRIBER_PROVIDERS.keys())}")
         return validate_attribute(value, list(SUPPORTED_TRANSCRIBER_PROVIDERS.keys()))
 
     @validator("language")
@@ -203,7 +202,13 @@ class ConversationConfig(BaseModel):
         int] = 1  # Maybe send half second of empty noise if needed for a while as soon as we get speaking true in nitro, use that to delay
     interruption_backoff_period: Optional[int] = 100
     hangup_after_LLMCall: Optional[bool] = False
-    call_cancellation_prompt: Optional[str] = None
+    call_cancellation_prompt: Optional[str] = """You are an helpful AI assistant that's having a conversation with customer on a phone call. 
+Based on the given transcript, should you cut the call?
+
+RULES: 
+1. If user is not interested in talking, or is annoyed or is angry we might need to cut the phone. 
+2. You are also provided with original prompt use the content of original prompt to make your decision. For example if the purpose of the phone call is done and we have all the required content we need to cut the call.
+"""
     backchanneling: Optional[bool] = False
     backchanneling_message_gap: Optional[int] = 5
     backchanneling_start_delay: Optional[int] = 5

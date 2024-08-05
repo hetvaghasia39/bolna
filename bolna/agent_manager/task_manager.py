@@ -248,7 +248,10 @@ class TaskManager(BaseManager):
 
                 self.check_for_completion_prompt = conversation_config.get("call_cancellation_prompt", None)
                 if self.check_for_completion_prompt is not None:
-                    completion_json_format = {"answer": "A simple Yes or No based on if you should cut the phone or not"}
+                    completion_json_format = """### JSON FORMAT
+{"answer": "A simple Yes or No based on if you should cut the phone or not"}
+e.g. {"answer": "Yes"}
+{"answer": "No"}"""
                     self.check_for_completion_prompt = f"{self.check_for_completion_prompt}\nYour response should be in the following json format\n{completion_json_format}"
                 self.check_for_completion_llm = os.getenv("CHECK_FOR_COMPLETION_LLM")
                 self.time_since_last_spoken_human_word = 0 
@@ -989,8 +992,11 @@ class TaskManager(BaseManager):
 
             await self.__do_llm_generation(messages, meta_info, next_step, should_bypass_synth)
             # TODO : Write a better check for completion prompt 
+            print("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV")
+            print(self.check_for_completion_prompt)
             if self.use_llm_to_determine_hangup and not self.turn_based_conversation:
                 answer = await self.tools["llm_agent"].check_for_completion(self.history, self.check_for_completion_prompt)
+                print("XXXXXXXXXXXXXXXXXXXXXXX", answer, "\n", self.check_for_completion_prompt, "\n", self.history)
                 should_hangup = answer['answer'].lower() == "yes"
                 prompt = [
                         {'role': 'system', 'content': self.check_for_completion_prompt},
