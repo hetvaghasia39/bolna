@@ -996,7 +996,7 @@ e.g. {"answer": "Yes"}
             logger.info(self.check_for_completion_prompt)
             if self.use_llm_to_determine_hangup and not self.turn_based_conversation:
                 answer = await self.tools["llm_agent"].check_for_completion(self.history, self.check_for_completion_prompt)
-                logger.info("XXXXXXXXXXXXXXXXXXXXXXX", answer, "\n", self.check_for_completion_prompt, "\n", self.history)
+                logger.info(f"XXXXXXXXXXXXXXXXXXXXXXX {answer} \n {self.check_for_completion_prompt} \n {self.history}")
                 should_hangup = answer['answer'].lower() == "yes"
                 prompt = [
                         {'role': 'system', 'content': self.check_for_completion_prompt},
