@@ -2,7 +2,6 @@ import asyncio
 from collections import defaultdict
 import math
 import os
-import random
 import traceback
 import time
 import json
@@ -25,6 +24,7 @@ from bolna.helpers.logger_config import configure_logger
 from semantic_router import Route
 from semantic_router.layer import RouteLayer
 from semantic_router.encoders import FastEmbedEncoder
+import secrets
 
 asyncio.get_event_loop().set_debug(True)
 logger = configure_logger(__name__)
@@ -818,7 +818,7 @@ class TaskManager(BaseManager):
         new_meta_info = copy.deepcopy(meta_info)
         self.current_filler = filler_class
         should_bypass_synth = 'bypass_synth' in meta_info and meta_info['bypass_synth'] == True
-        filler = random.choice((FILLER_DICT[filler_class]))
+        filler = secrets.choice((FILLER_DICT[filler_class]))
         await self._handle_llm_output(next_step, filler, should_bypass_synth, new_meta_info, is_filler = True)
     
     async def __execute_function_call(self, url, method, param, api_token, model_args, meta_info, next_step, called_fun, **resp):
@@ -1574,7 +1574,7 @@ class TaskManager(BaseManager):
     async def __check_for_backchanneling(self):
         while True:
             if self.callee_speaking and time.time() - self.callee_speaking_start_time > self.backchanneling_start_delay:
-                filename = random.choice(self.filenames)
+                filename = secrets.choice(self.filenames)
                 logger.info(f"Should send a random backchanneling words and sending them {filename}")
                 audio = await get_raw_audio_bytes(f"{self.backchanneling_audios}/{filename}", local= True, is_location=True)
                 if not self.turn_based_conversation and self.task_config['tools_config']['output'] != "default":
