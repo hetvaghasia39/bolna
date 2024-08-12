@@ -1,10 +1,8 @@
 
 from bolna.helpers.logger_config import configure_logger
 from bolna.memory.cache.base_cache import BaseCache
-from typing import List
 import numpy as np
 from fastembed import TextEmbedding
-from sentence_transformers import util
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
