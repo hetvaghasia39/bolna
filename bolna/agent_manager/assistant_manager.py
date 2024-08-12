@@ -118,6 +118,7 @@ class AssistantManager(BaseManager):
         if run_id:
             self.run_id = run_id
         result = {}
+        result['user_id'] = self.agent_config.get('user_id', self.user_id)
         input_parameters = None
         for task_id, task in enumerate(self.tasks):
             logger.info(
