@@ -166,6 +166,7 @@ class AssistantManager(BaseManager):
                 input_parameters["extraction_details"] = result
         if result and result.get("call_sid", None):
             result["recording_path"] = download_and_upload_to_s3(result.get("call_sid", None))
+        result['user_id'] = self.agent_config.get('user_id', None)
         logger.info("Updating Execution Information in MongoDB")
         db['execution_metadata'].insert_one(result)
         logger.info("Done Updating Execution Information in MongoDB")

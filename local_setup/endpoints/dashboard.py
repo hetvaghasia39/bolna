@@ -5,9 +5,11 @@ from fastapi import APIRouter, HTTPException, Request
 from vo_utils.database_utils import db
 from config import settings
 from vo_utils.clerk_auth_utils import get_user_id_from_Token
-import datetime
+from datetime import datetime, timedelta
+import logging
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class WeekDayCallData(BaseModel):
@@ -62,71 +64,77 @@ class DashBoardModel(BaseModel):
             raise ValueError("Call duration data should have 4 entries")
         return value
 
-@router.get("/dashboard", response_model=DashBoardModel)
-def get_dashboard_data(
-        header: Request,
-):
+@router.get("/dashboard2", response_model=DashBoardModel)
+def get_dashboard_data(header: Request):
+    start_time = datetime.now()
+    
+    # Initialize counts and data structures
     total_calls = 0
-    average_call_duration = 0
     total_agents = 0
-    week_data = [ WeekDayCallData(name="Mon", inbound=0, outbound=0),
-                 WeekDayCallData(name="Tue", inbound=0, outbound=0),
-                 WeekDayCallData(name="Wed", inbound=0, outbound=0),
-                 WeekDayCallData(name="Thu", inbound=0, outbound=0),
-                 WeekDayCallData(name="Fri", inbound=0, outbound=0),
-                 WeekDayCallData(name="Sat", inbound=0, outbound=0),
-                 WeekDayCallData(name="Sun", inbound=0, outbound=0)]
-    call_duration_data = [CallDurationData(name="Week 1", average_duration=0),
-                            CallDurationData(name="Week 2", average_duration=0),
-                            CallDurationData(name="Week 3", average_duration=0),
-                            CallDurationData(name="Week 4", average_duration=0)]
-    user_id = get_user_id_from_Token(header)
-    for doc in db[settings.MONGO_COLLECTION].find({"user_id": user_id}, {"agent_id": 1}):
-        total_agents += 1
-        execs = db[settings.EXECUTION_COLLECTION].find({"agent_id": doc["agent_id"]}, {'conversation_time': 1})
-        for exec in execs:
-            total_calls += 1
-            average_call_duration += exec["conversation_time"]
-        today = datetime.datetime.now()
-        today = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        monday = today - datetime.timedelta(days=today.weekday())
-        day = today.strftime("%a")
-        execs = db[settings.EXECUTION_COLLECTION].find({"agent_id": doc["agent_id"], "created_at": {"$gte": monday.strftime("%Y-%m-%dT%H:%M:%S.%f")}}, {"conversation_time": 1, "created_at": 1}).sort("created_at", 1)
-        for i, data in enumerate(week_data):
-            if data.name == day:
-                for exec in execs:
-                    created_at = datetime.datetime.strptime(exec["created_at"], "%Y-%m-%dT%H:%M:%S.%f")
-                    if created_at >= monday and created_at < monday + datetime.timedelta(days=1 + i):
-                        data.outbound += 1
-                break
-        date_4_weeks_ago = monday - datetime.timedelta(days=21)
-        for week in call_duration_data:
-            num_calls = 0
-            execs = db[settings.EXECUTION_COLLECTION].find({"agent_id": doc["agent_id"], "created_at": {"$gte": date_4_weeks_ago.strftime("%Y-%m-%dT%H:%M:%S.%f"), "$lt": (date_4_weeks_ago + datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.%f")}}, {"conversation_time": 1, "created_at": 1})
-            for exec in execs:
-                num_calls += 1
-                created_at = datetime.datetime.strptime(exec["created_at"], "%Y-%m-%dT%H:%M:%S.%f")
-                if created_at >= date_4_weeks_ago and created_at < date_4_weeks_ago + datetime.timedelta(days=7):
-                    week.average_duration += exec["conversation_time"]
-            if num_calls > 0:
-                week.average_duration = week.average_duration // num_calls
-            date_4_weeks_ago += datetime.timedelta(days=7)
+    total_duration = 0
+    week_data = {day: WeekDayCallData(name=day, inbound=0, outbound=0) for day in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
+    call_duration_data = {f"Week {i+1}": CallDurationData(name=f"Week {i+1}", average_duration=0) for i in range(4)}
+    
+    # Assume user_id is fetched correctly
+    user_id = 2
 
-    if total_calls > 0:
-        average_call_duration = average_call_duration // total_calls
-    dbm= DashBoardModel(
+    # Fetch all agents for the user
+    agents = list(db[settings.MONGO_COLLECTION].find({"user_id": user_id}, {"agent_id": 1}))
+    agent_ids = [agent["agent_id"] for agent in agents]
+    total_agents = len(agent_ids)
+
+    # Fetch execution data in one query
+    now = datetime.now()
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    monday = today - timedelta(days=today.weekday())
+    four_weeks_ago = monday - timedelta(days=21)
+
+    executions = list(db[settings.EXECUTION_COLLECTION].find({
+        "agent_id": {"$in": agent_ids},
+        "created_at": {"$gte": four_weeks_ago.isoformat()}
+    }, {"agent_id": 1, "conversation_time": 1, "created_at": 1}).sort("created_at", 1))
+
+    # Aggregate data
+    call_counts = {agent_id: {"total_calls": 0, "total_duration": 0} for agent_id in agent_ids}
+
+    for exec in executions:
+        agent_id = exec["agent_id"]
+        call_counts[agent_id]["total_calls"] += 1
+        call_counts[agent_id]["total_duration"] += exec["conversation_time"]
+
+        # Update week data
+        created_at = datetime.fromisoformat(exec["created_at"])
+        if monday <= created_at < monday + timedelta(days=7):
+            day_name = created_at.strftime("%a")
+            week_data[day_name].outbound += 1
+
+        # Update call duration data
+        week_index = (created_at - four_weeks_ago).days // 7
+        
+        if 0 <= week_index < 4:
+            week = f"Week {week_index + 1}"
+            call_duration_data[week].average_duration += exec["conversation_time"]
+
+    # Compute total calls and average call duration
+    for counts in call_counts.values():
+        total_calls += counts["total_calls"]
+        total_duration += counts["total_duration"]
+
+    for week_index, week_data_obj in enumerate(call_duration_data.values()):
+        if week_data_obj.average_duration > 0:
+            num_calls = sum(1 for exec in executions if (datetime.fromisoformat(exec["created_at"]) - four_weeks_ago).days // 7 == week_index)
+            week_data_obj.average_duration = week_data_obj.average_duration // num_calls if num_calls > 0 else 0
+
+    average_call_duration = total_duration // total_calls if total_calls > 0 else 0
+
+    # Create response model
+    dbm = DashBoardModel(
         total_calls=total_calls,
         average_call_duration=average_call_duration,
         total_agents=total_agents,
-        week_data=week_data,
-        call_duration_data=call_duration_data
+        week_data=list(week_data.values()),
+        call_duration_data=list(call_duration_data.values())
     )
+
+    logger.info(f"Time taken to fetch dashboard data: {datetime.now() - start_time}")
     return dbm
-
-
-
-            
-
-
-    
-        
