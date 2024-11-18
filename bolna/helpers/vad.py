@@ -1,10 +1,11 @@
 import os
 import subprocess
-import requests
 import torch
 import numpy as np
 import onnxruntime
 from .logger_config import configure_logger
+from security import safe_requests
+
 logger = configure_logger(__name__)
 
 
@@ -99,7 +100,7 @@ class VAD():
             os.makedirs(save_path, exist_ok=True)
             logger.info("Downloading VAD model")
             try:
-                response = requests.get(model_url)
+                response = safe_requests.get(model_url)
                 if response.status_code == 200:
                     with open(model_filename, 'wb') as file:
                         file.write(response.content)
