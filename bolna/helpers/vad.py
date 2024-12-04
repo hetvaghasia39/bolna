@@ -99,7 +99,7 @@ class VAD():
             os.makedirs(save_path, exist_ok=True)
             logger.info("Downloading VAD model")
             try:
-                response = requests.get(model_url)
+                response = requests.get(model_url, timeout=60)
                 if response.status_code == 200:
                     with open(model_filename, 'wb') as file:
                         file.write(response.content)

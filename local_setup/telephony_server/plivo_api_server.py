@@ -21,7 +21,7 @@ plivo_client = plivo.RestClient(os.getenv('PLIVO_AUTH_ID'), os.getenv('PLIVO_AUT
 
 
 def populate_ngrok_tunnels():
-    response = requests.get("http://ngrok:4040/api/tunnels")  # ngrok interface
+    response = requests.get("http://ngrok:4040/api/tunnels", timeout=60)  # ngrok interface
     telephony_url, bolna_url = None, None
 
     if response.status_code == 200:
